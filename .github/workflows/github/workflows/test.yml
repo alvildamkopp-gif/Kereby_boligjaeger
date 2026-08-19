@@ -1,4 +1,4 @@
-name: Test Telegram
+name: Test Kereby
 
 on:
   workflow_dispatch:
@@ -8,12 +8,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Test Telegram
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          echo "Tester Telegram..."
-          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            -d "chat_id=${TELEGRAM_CHAT_ID}" \
-            --data-urlencode text=🏠 "TEST FRA KEREBY-BOT!" 🤖🔔
+      - name: Hent repository
+        uses: actions/checkout@v4
+
+      - name: Sæt Python op
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer pakker
+        run: pip install requests beautifulsoup4
+
+      - name: Test Kereby
+        run: python kereby_bot.py
