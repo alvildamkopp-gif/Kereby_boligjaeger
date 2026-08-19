@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Installer pakker
+      - name: Installer Kereby pakker
         run: pip install requests beautifulsoup4
 
       - name: Test Kereby
