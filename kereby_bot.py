@@ -1,23 +1,19 @@
-import os
 import requests
+from bs4 import BeautifulSoup
 
-TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
+URL = "https://kereby.dk/bolig/"
 
-message = "🏠 TEST! Kereby-botten virker! 🤖🔔"
-
-url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-
-response = requests.post(
-    url,
-    data={
-        "chat_id": CHAT_ID,
-        "text": message,
-    },
-)
-
-print("Telegram svar:")
-print(response.status_code)
-print(response.text)
-
+response = requests.get(URL, timeout=20)
 response.raise_for_status()
+
+soup = BeautifulSoup(response.text, "html.parser")
+
+print("Kereby blev hentet!")
+print("Antal links fundet:", len(soup.find_all("a")))
+
+for link in soup.find_all("a", href=True):
+    href = link["href"]
+    text = link.get_text(" ", strip=True)
+
+    if "/bolig/" in href and text:
+        print(text[:100], "→", href)
