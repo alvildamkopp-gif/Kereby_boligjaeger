@@ -1,4 +1,4 @@
-name: Test Telegram Bot
+name: Kereby Boligjæger
 
 on:
   workflow_dispatch:
@@ -16,11 +16,19 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Installer requests
+      - name: Installer pakker
         run: pip install requests
 
-      - name: Kør botten
+      - name: Kør Kereby-bot
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -u kereby_bot.py
+        run: python kereby_bot.py
+
+      - name: Gem ændringer
+        run: |
+          git config user.name "Kereby Bot"
+          git config user.email "kereby-bot@users.noreply.github.com"
+          git add seen_boliger.json
+          git diff --cached --quiet || git commit -m "Opdater sete boliger"
+          git push
