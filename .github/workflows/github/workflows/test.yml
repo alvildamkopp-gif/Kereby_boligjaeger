@@ -16,4 +16,4 @@ jobs:
           echo "Tester Telegram..."
           curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -d "chat_id=${TELEGRAM_CHAT_ID}" \
-            --data-urlencode "text=🏠 TEST FRA KEREBY-BOT! 🤖🔔"
+            --data-urlencode text=🏠 "TEST FRA KEREBY-BOT!" 🤖🔔
