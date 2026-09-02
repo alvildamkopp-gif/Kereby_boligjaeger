@@ -3,11 +3,26 @@ name: Kereby Boligjæger
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/2 * * * *"
+    # GitHub kan ikke køre oftere end hvert 5. minut - og forsinker tit
+    # planlagte kørsler. Derfor kører selve jobbet ~55 min i et loop og
+    # poller kereby.dk hvert 20. sekund. Næste planlagte kørsel starter,
+    # så snart den forrige er slut (near-continuous overvågning).
+    - cron: "*/5 * * * *"
+
+# Kun én kørsel ad gangen (ingen git push-konflikter). En ny planlagt
+# kørsel venter i kø til den nuværende er færdig i stedet for at blive
+# afbrudt.
+concurrency:
+  group: kereby-bot
+  cancel-in-progress: false
+
+permissions:
+  contents: write
 
 jobs:
-  test:
+  tjek:
     runs-on: ubuntu-latest
+    timeout-minutes: 62
 
     steps:
       - name: Hent repository
@@ -21,16 +36,29 @@ jobs:
       - name: Installer pakker
         run: pip install requests
 
-      - name: Kør Kereby-bot
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python kereby_bot.py
-
-      - name: Gem ændringer
+      - name: Konfigurer git
         run: |
           git config user.name "Kereby Bot"
           git config user.email "kereby-bot@users.noreply.github.com"
+
+      - name: Kør Kereby-bot
+        timeout-minutes: 58
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RUN_DURATION_SECONDS: "3300"
+          POLL_INTERVAL_SECONDS: "20"
+          GIT_AUTOCOMMIT: "1"
+        run: python kereby_bot.py
+
+      - name: Gem sete boliger (sikkerhedsnet)
+        if: always()
+        run: |
           git add seen_boliger.json
-          git diff --cached --quiet || git commit -m "Opdater sete boliger"
+          if git diff --cached --quiet; then
+            echo "Ingen ændringer i seen_boliger.json"
+            exit 0
+          fi
+          git commit -m "Opdater sete boliger"
+          git pull --rebase --autostash origin main
           git push
