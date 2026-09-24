@@ -11,6 +11,7 @@ import requests
 
 KEREBY_URL = "https://kereby.dk/bolig/"
 STATE_FILE = "seen_boliger.json"
+ACTIVE_STATE_FILE = "active_boliger.json"
 
 TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
@@ -21,9 +22,8 @@ CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL_SECONDS", "20"))
 RUN_DURATION = int(os.environ.get("RUN_DURATION_SECONDS", "0"))
 
-# Når =1 committer og pusher botten selv seen_boliger.json så snart der er
-# en ny bolig (bruges i GitHub Actions, hvor et langt job ellers først ville
-# gemme til sidst).
+# Når =1 committer og pusher botten selv active_boliger.json, så ændringer i
+# ledige boliger gemmes med det samme i GitHub Actions.
 GIT_AUTOCOMMIT = os.environ.get("GIT_AUTOCOMMIT") == "1"
 
 HTTP_TIMEOUT = 20
@@ -131,18 +131,34 @@ def gem_set(seen):
     os.replace(tmp, STATE_FILE)
 
 
+def hent_aktive():
+    """Hent den seneste snapshot af boliger, der var ledige."""
+    if not os.path.exists(ACTIVE_STATE_FILE):
+        return None
+    with open(ACTIVE_STATE_FILE, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return set(data)
+
+
+def gem_aktive(active):
+    tmp = ACTIVE_STATE_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(sorted(active), f, indent=2, ensure_ascii=False)
+    os.replace(tmp, ACTIVE_STATE_FILE)
+
+
 def _git(*args, check=True):
     return subprocess.run(["git", *args], check=check,
                           capture_output=True, text=True)
 
 
 def commit_state(antal_nye):
-    """Commit + push seen_boliger.json med det samme (kun i Actions).
+    """Commit + push active_boliger.json med det samme (kun i Actions).
     Push-workflow'et sender så en Telegram-bekræftelse på committen."""
     if not GIT_AUTOCOMMIT:
         return
     try:
-        _git("add", STATE_FILE)
+        _git("add", ACTIVE_STATE_FILE)
         if _git("diff", "--cached", "--quiet", check=False).returncode == 0:
             return  # intet at committe
         besked = f"Opdater sete boliger (+{antal_nye} ny{'e' if antal_nye != 1 else ''})"
@@ -201,22 +217,27 @@ def send_telegram(info):
 def tjek_en_gang(seen):
     html_text = fetch_html()
     ledige = parse_ledige_boliger(html_text)
+    current = set(ledige)
+    previous_active = hent_aktive()
 
-    # Første kørsel nogensinde: gem udgangspunktet uden at spamme.
-    if not seen:
-        seen.update(ledige)
-        gem_set(seen)
-        print(f"[{_now()}] Første kørsel - gemmer {len(seen)} boliger som udgangspunkt.")
+    # Første kørsel med snapshot: gem udgangspunktet uden at spamme.
+    if previous_active is None:
+        gem_aktive(current)
+        print(f"[{_now()}] Første snapshot - gemmer {len(current)} ledige boliger.")
         return
 
-    nye = [u for u in ledige if u not in seen]
+    nye = sorted(current - previous_active)
+    active = current & previous_active
     if not nye:
+        if active != previous_active:
+            gem_aktive(active)
+            commit_state(0)
         print(f"[{_now()}] {len(ledige)} ledige boliger, ingen nye.")
         return
 
     print(f"[{_now()}] {len(nye)} NY(E) bolig(er)!")
     antal_sendt = 0
-    for url in sorted(nye):
+    for url in nye:
         info = ledige[url]
         try:
             send_telegram(info)
@@ -224,12 +245,12 @@ def tjek_en_gang(seen):
             # Ikke markeret som set -> prøves igen ved næste tjek.
             print(f"  ❌ kunne ikke sende besked for {url}: {e}")
             continue
-        seen.add(url)
-        gem_set(seen)
+        active.add(url)
         antal_sendt += 1
         print(f"  ✅ sendt: {info.get('adresse') or url}")
 
-    if antal_sendt:
+    gem_aktive(active)
+    if active != previous_active:
         commit_state(antal_sendt)
 
 

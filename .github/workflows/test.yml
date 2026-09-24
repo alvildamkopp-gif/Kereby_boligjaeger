@@ -54,9 +54,9 @@ jobs:
       - name: Gem sete boliger (sikkerhedsnet)
         if: always()
         run: |
-          git add seen_boliger.json
+          git add active_boliger.json
           if git diff --cached --quiet; then
-            echo "Ingen ændringer i seen_boliger.json"
+            echo "Ingen ændringer i active_boliger.json"
             exit 0
           fi
           git commit -m "Opdater sete boliger"
