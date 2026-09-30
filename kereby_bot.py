@@ -220,11 +220,9 @@ def tjek_en_gang(seen):
     current = set(ledige)
     previous_active = hent_aktive()
 
-    # Første kørsel med snapshot: gem udgangspunktet uden at spamme.
+    # Uden et tidligere snapshot behandles alle aktuelt ledige boliger som nye.
     if previous_active is None:
-        gem_aktive(current)
-        print(f"[{_now()}] Første snapshot - gemmer {len(current)} ledige boliger.")
-        return
+        previous_active = set()
 
     nye = sorted(current - previous_active)
     active = current & previous_active
